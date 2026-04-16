@@ -88,9 +88,66 @@ def correlate_lateral_movement(db: Session) -> list[dict]:
     return alerts_generated
 
 
+def correlate_brute_force(db: Session, threshold: int = 5) -> list[dict]:
+    """
+    Scenario: Multiple failed logons (4625) in a short window → brute force.
+    """
+    alerts_generated = []
+    recent = _events_in_window(db)
+    failed_logons = _find_by_event_id(recent, 4625)
+
+    if len(failed_logons) >= threshold:
+        users = list({e.user or "unknown" for e in failed_logons})
+        alert_data = {
+            "severity": "critical",
+            "rule_name": "Brute Force Attack Detected",
+            "description": (
+                f"{len(failed_logons)} failed logon attempts within "
+                f"{CORRELATION_WINDOW_MINUTES} minutes. "
+                f"Targeted accounts: {', '.join(users[:5])}."
+            ),
+            "mitre_tactic": "Credential Access",
+            "mitre_technique": "T1110.001",
+        }
+        alert_mgr.create_alert(db, alert_data)
+        alerts_generated.append(alert_data)
+
+    return alerts_generated
+
+
+def correlate_privilege_escalation(db: Session) -> list[dict]:
+    """
+    Scenario: Failed logon (4625) followed by special privileges assigned (4672)
+    within the time window – possible successful escalation after initial failure.
+    """
+    alerts_generated = []
+    recent = _events_in_window(db)
+
+    failed = _find_by_event_id(recent, 4625)
+    escalated = _find_by_event_id(recent, 4672)
+
+    if failed and escalated:
+        alert_data = {
+            "severity": "critical",
+            "rule_name": "Possible Privilege Escalation After Failed Logon",
+            "description": (
+                f"Failed logon attempts ({len(failed)}) followed by sensitive privilege "
+                f"assignment ({len(escalated)} events) within {CORRELATION_WINDOW_MINUTES} minutes."
+            ),
+            "mitre_tactic": "Privilege Escalation",
+            "mitre_technique": "T1134",
+        }
+        alert_mgr.create_alert(db, alert_data)
+        alerts_generated.append(alert_data)
+
+    return alerts_generated
+
+
 def run_all_correlations(db: Session) -> list[dict]:
     """Run every correlation scenario and return all generated alerts."""
     results = []
     results.extend(correlate_recon_then_execution(db))
     results.extend(correlate_lateral_movement(db))
+    results.extend(correlate_brute_force(db))
+    results.extend(correlate_privilege_escalation(db))
     return results

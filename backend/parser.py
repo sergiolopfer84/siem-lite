@@ -66,6 +66,22 @@ def _parse_record_xml(xml_str: str) -> dict:
         "source_image": data.get("SourceImage", ""),
         "target_filename": data.get("TargetFilename", ""),
         "hashes": data.get("Hashes", ""),
+        # Windows Security Log fields
+        "subject_user": data.get("SubjectUserName", ""),
+        "target_user": data.get("TargetUserName", ""),
+        "logon_type": data.get("LogonType", ""),
+        "logon_process": data.get("LogonProcessName", ""),
+        "workstation": data.get("WorkstationName", ""),
+        "ip_address": data.get("IpAddress", ""),
+        "failure_reason": data.get("FailureReason", ""),
+        "privilege_list": data.get("PrivilegeList", ""),
+        "new_process": data.get("NewProcessName", ""),
+        "task_name": data.get("TaskName", ""),
+        "task_content": data.get("TaskContent", ""),
+        # PowerShell Operational fields
+        "script_block_text": data.get("ScriptBlockText", ""),
+        "script_path": data.get("Path", ""),
+        "payload": data.get("Payload", ""),
         "raw_xml": xml_str,
     }
     return event
