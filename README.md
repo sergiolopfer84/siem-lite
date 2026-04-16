@@ -1,12 +1,14 @@
-# SIEM-Lite
+# ThreatScope
 
-A lightweight Security Information and Event Management (SIEM) system designed for analysing **Sysmon** Windows Event Logs (`.evtx` files).
+A lightweight **Security Information and Event Management (SIEM)** system for analysing Windows Event Logs (`.evtx` files) — built to learn how Blue Team tools work from the inside.
+
+> Applies the same detection principles used by professional SIEMs (Splunk, Microsoft Sentinel, IBM QRadar) at a didactic scale.
 
 ---
 
 ## Overview
 
-SIEM-Lite ingests Sysmon logs, parses every event, evaluates them against a set of detection rules, persists findings in a local SQLite database, and presents them through a clean React dashboard.
+ThreatScope ingests Windows event logs, parses every event, evaluates them against detection rules mapped to **MITRE ATT&CK**, correlates multi-step attack sequences, persists findings in a local SQLite database, and presents them through a clean React dashboard.
 
 ```
 siem-lite/
@@ -28,13 +30,23 @@ siem-lite/
 
 | Feature | Details |
 |---|---|
-| EVTX ingestion | Upload Sysmon `.evtx` files via the web UI or REST API |
-| Detection rules | PowerShell obfuscation, LSASS access, remote thread injection, suspicious network connections, ADS creation |
-| Event correlation | Recon→Execution and Lateral Movement multi-step scenarios |
-| MITRE ATT&CK mapping | Each rule maps to a tactic and technique ID |
+| EVTX ingestion | Upload `.evtx` files via the web UI or REST API |
+| Detection rules | 12 rules covering Sysmon, Windows Security, and PowerShell logs |
+| Event correlation | 4 multi-step attack scenarios with configurable time windows |
+| MITRE ATT&CK mapping | Every rule maps to a tactic and technique ID |
 | REST API | FastAPI with automatic OpenAPI docs at `/docs` |
 | Dashboard | Live stats, severity breakdown, recent alerts |
 | Pagination | Event browser with server-side pagination |
+
+---
+
+## Supported Log Sources
+
+| Source | Channel (.evtx) | What it monitors |
+|---|---|---|
+| Sysmon | Microsoft-Windows-Sysmon/Operational | Processes, network, injection, ADS, LSASS access |
+| Windows Security | Security | Logons, user creation, privileges, scheduled tasks |
+| PowerShell | Microsoft-Windows-PowerShell/Operational | Script blocks, downloads, obfuscation |
 
 ---
 
@@ -74,7 +86,7 @@ UI available at: `http://localhost:5173`
 | Method | Path | Description |
 |---|---|---|
 | GET | `/health` | Health check |
-| POST | `/api/upload` | Upload a Sysmon `.evtx` file |
+| POST | `/api/upload` | Upload a `.evtx` file |
 | GET | `/api/events` | List parsed log events (paginated) |
 | GET | `/api/alerts` | List alerts (filterable by severity) |
 | DELETE | `/api/alerts/{id}` | Delete a specific alert |
@@ -84,20 +96,43 @@ UI available at: `http://localhost:5173`
 
 ## Detection Rules
 
-| Rule | Severity | MITRE Technique |
-|---|---|---|
-| Suspicious PowerShell Execution | High | T1059.001 |
-| LSASS Memory Access | Critical | T1003.001 |
-| Remote Thread Injection | High | T1055.003 |
-| Suspicious Outbound Network Connection | Medium | T1071 |
-| Alternate Data Stream Created | Medium | T1564.004 |
+| Rule | Severity | Tactic | Technique | Source |
+|---|---|---|---|---|
+| Obfuscated PowerShell (Process) | High | Execution | T1059.001 | Sysmon |
+| LSASS Memory Access | Critical | Credential Access | T1003.001 | Sysmon |
+| Remote Thread Injection | High | Defense Evasion | T1055.003 | Sysmon |
+| Suspicious Outbound Network Connection | Medium | Command & Control | T1071 | Sysmon |
+| Alternate Data Stream Created | Medium | Defense Evasion | T1564.004 | Sysmon |
+| Failed Logon | Medium | Credential Access | T1110 | Security |
+| Explicit Credentials Used (4648) | High | Lateral Movement | T1550.002 | Security |
+| Sensitive Privilege Assigned | High | Privilege Escalation | T1134 | Security |
+| New User Account Created | High | Persistence | T1136.001 | Security |
+| Scheduled Task Created | Medium | Persistence | T1053.005 | Security |
+| Suspicious Script Block (4104) | High | Execution | T1059.001 | PowerShell |
+| PowerShell Download (4103) | High | Command & Control | T1105 | PowerShell |
 
 ---
 
 ## Correlation Scenarios
 
-- **Recon → Execution**: DNS query (Event ID 22) followed by PowerShell (Event ID 1) within 5 minutes.
-- **Lateral Movement**: Network connection (Event ID 3) followed by CreateRemoteThread (Event ID 8) within 5 minutes.
+Multi-step attack detection evaluates sequences of events within a 5-minute window.
+
+| Scenario | Severity | Pattern |
+|---|---|---|
+| Recon → Execution | High | DNS query (Sysmon ID 22) → PowerShell spawn (Sysmon ID 1) |
+| Lateral Movement | Critical | Network connection (Sysmon ID 3) → CreateRemoteThread (Sysmon ID 8) |
+| Brute Force | Critical | 5+ failed logons (Security ID 4625) |
+| Privilege Escalation after Failure | Critical | Failed logon (Security ID 4625) → Sensitive privileges assigned (Security ID 4672) |
+
+---
+
+## Practice Logs
+
+No Windows machine? You can use `.evtx` samples from these platforms:
+
+- [BOTS — Splunk](https://www.splunk.com/en_us/blog/security/botsv3-dataset-release.html)
+- [Blue Team Labs Online](https://blueteamlabs.online/)
+- [CyberDefenders](https://cyberdefenders.org/)
 
 ---
 
@@ -105,3 +140,9 @@ UI available at: `http://localhost:5173`
 
 - **Backend**: Python 3.11+, FastAPI, SQLAlchemy, python-evtx, SQLite
 - **Frontend**: React 18, Vite 5, TailwindCSS 3
+
+---
+
+## About
+
+ThreatScope was built to understand how SIEMs work from first principles — parsing raw logs, writing detection logic, and correlating multi-event attack patterns. It's useful as a learning tool, a CTF companion, or a portfolio project for Blue Team and SOC analyst roles.
